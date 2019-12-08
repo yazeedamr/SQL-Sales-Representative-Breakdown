@@ -1,0 +1,28 @@
+SELECT  a.id as agent_id,
+        CONCAT(a.first_name, " ", a.last_name) as 'Rep', CONCAT("$",FORMAT(SUM(pi.amount+pi.shipping_cost),2)) as 'GMV',
+        IFNULL(CONCAT("$",FORMAT(r.totalr,2)),0) as 'GMV Refunds', 
+        IFNULL(CONCAT("$",FORMAT(r.totalr-r.netr,2)),0) as "Net Refunds",
+        CONCAT(ROUND(IFNULL(r.totalr/SUM(pi.amount)*100,0),2), '%') as 'Refund Rate',
+        CONCAT("$", FORMAT(SUM(pi.amount+pi.shipping_cost)-IFNULL(r.totalr,0),2)) as "After Refunds GMV",
+        CONCAT("$", FORMAT(SUM(pi.amount) - SUM(pi.quantity*do.absolute_merchant_commission_amount)-IFNULL(r.totalr-r.netr,0),2)) as "After Refunds Net"
+    FROM purchase_items as pi
+    LEFT OUTER JOIN deals as d ON d.id = pi.deal_id
+    LEFT OUTER JOIN agents as a ON a.id = d.agent_id
+    LEFT OUTER JOIN deal_options as do ON do.id = pi.deal_option_id
+    LEFT OUTER JOIN purchases as p ON p.id = pi.purchase_id
+    LEFT OUTER JOIN merchants as m ON m.id = d.merchant_id
+    LEFT OUTER JOIN (SELECT a.id as id, SUM(vr.confirmed_amount_given+vr.confirmed_credit_given+vr.promo_code_amount) as totalr,
+SUM((do.absolute_merchant_commission_amount/do.absolute_price_deal)*(vr.confirmed_amount_given+vr.confirmed_credit_given+vr.promo_code_amount)) as netr
+FROM voucher_refunds as vr
+LEFT OUTER JOIN deals as d ON vr.deal_id = d.id
+LEFT OUTER JOIN merchants as m ON m.id = d.merchant_id
+LEFT OUTER JOIN agents as a ON d.agent_id = a.id
+                        LEFT OUTER JOIN deal_options as do ON do.id = vr.deal_option_id
+WHERE vr.refund_time > UNIX_TIMESTAMP(STR_TO_DATE('December 3 2019 5:00AM','%M %d %Y %h:%i%p'))
+AND vr.refund_time <  UNIX_TIMESTAMP(STR_TO_DATE('December 4 2019 5:00AM','%M %d %Y %h:%i%p'))
+                        AND vr.deal_id IN (SELECT pi.deal_id FROM purchase_items as pi LEFT OUTER JOIN purchases as p ON p.id = pi.purchase_id
+WHERE p.time BETWEEN UNIX_TIMESTAMP(STR_TO_DATE('December 3 2019 5:00AM','%M %d %Y %h:%i%p')) AND UNIX_TIMESTAMP(STR_TO_DATE('December 4 2019 5:00AM','%M %d %Y %h:%i%p')))
+GROUP BY CONCAT(a.first_name, " ", a.last_name)) as r ON r.id = a.id
+WHERE p.time BETWEEN UNIX_TIMESTAMP(STR_TO_DATE('December 3 2019 5:00AM','%M %d %Y %h:%i%p')) AND UNIX_TIMESTAMP(STR_TO_DATE('December 4 2019 5:00AM','%M %d %Y %h:%i%p')))
+GROUP BY a.first_name
+ORDER BY CONCAT(a.first_name, " ", a.last_name) ASC;
